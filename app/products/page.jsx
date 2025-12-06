@@ -17,7 +17,7 @@ export default function ProductsPage() {
     name: '',
     model: '',
     category: '',
-    extra: '',
+    extra: {},
   });
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function ProductsPage() {
       name: product.name || '',
       model: product.model || '',
       category: product.category || '',
-      extra: product.extra || '',
+      extra: {message: product.extra} || {},
     });
     setModalOpen(true);
   };
@@ -80,7 +80,7 @@ export default function ProductsPage() {
       name: '',
       model: '',
       category: '',
-      extra: '',
+      extra: {},
     });
   };
 
@@ -183,8 +183,8 @@ export default function ProductsPage() {
           <div>
             <label className="block text-sm text-dark-300 mb-2">اطلاعات اضافی</label>
             <textarea
-              value={formData.extra}
-              onChange={(e) => setFormData({ ...formData, extra: e.target.value })}
+              value={formData.extra.message}
+              onChange={(e) => setFormData({ ...formData, extra: { message: e.target.value } })}
               className="form-input"
               rows={3}
             />
