@@ -26,20 +26,20 @@ export default function DashboardPage() {
       const [persons, products, devices, repairs, tests] = await Promise.all([
         api.getPersons().catch(() => []),
         api.getProducts().catch(() => []),
-        api.getDevices().catch(() => []),
+        api.getDevices({}, false).catch(() => []),
         api.getRepairs().catch(() => []),
-        api.getTests().catch(() => []),
+        api.getTests({}, false).catch(() => []),
       ]);
 
       setStats({
         persons: persons?.length || 0,
         products: products?.length || 0,
-        devices: devices?.length || 0,
+        devices: devices?.total || devices?.length || 0,
         repairs: repairs?.length || 0,
-        tests: tests?.length || 0,
+        tests: tests?.total || tests?.length || 0,
       });
 
-      setRecentDevices((devices || []).slice(0, 5));
+      setRecentDevices((devices?.items || devices || []).slice(0, 5));
       setRecentRepairs((repairs || []).slice(0, 5));
     } catch (error) {
       console.error('Error loading dashboard:', error);

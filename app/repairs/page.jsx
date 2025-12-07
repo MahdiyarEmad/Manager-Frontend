@@ -6,6 +6,7 @@ import { formatDate, formatPrice } from '@/lib/constants';
 import DataTable from '@/components/DataTable';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
+import PersianDatePicker from '@/components/PersianDatePicker';
 
 export default function RepairsPage() {
   const [repairs, setRepairs] = useState([]);
@@ -255,13 +256,10 @@ export default function RepairsPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">تاریخ تعمیر</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="تاریخ تعمیر"
                 value={formData.repair_date}
-                onChange={(e) => setFormData({ ...formData, repair_date: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setFormData({ ...formData, repair_date: date })}
               />
             </div>
 

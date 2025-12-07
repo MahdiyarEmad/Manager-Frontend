@@ -183,7 +183,7 @@ export default function ProductsPage() {
           <div>
             <label className="block text-sm text-dark-300 mb-2">اطلاعات اضافی</label>
             <textarea
-              value={formData.extra.message}
+              value={formData.extra.message || ''}
               onChange={(e) => setFormData({ ...formData, extra: { message: e.target.value } })}
               className="form-input"
               rows={3}

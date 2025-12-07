@@ -6,6 +6,7 @@ import { JOB_ROLES, formatDate } from '@/lib/constants';
 import DataTable from '@/components/DataTable';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
+import PersianDatePicker from '@/components/PersianDatePicker';
 
 export default function PersonsPage() {
   const [persons, setPersons] = useState([]);
@@ -202,13 +203,10 @@ export default function PersonsPage() {
           </div>
 
           <div>
-            <label className="block text-sm text-dark-300 mb-2">تاریخ استخدام</label>
-            <input
-              type="date"
+            <PersianDatePicker
+              label="تاریخ استخدام"
               value={formData.hire_date}
-              onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })}
-              className="form-input"
-              dir="ltr"
+              onChange={(date) => setFormData({ ...formData, hire_date: date })}
             />
           </div>
 

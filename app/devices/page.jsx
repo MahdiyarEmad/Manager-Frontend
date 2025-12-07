@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import api from '@/lib/api';
 import { DEVICE_STATUS, formatDate } from '@/lib/constants';
+import { gregorianToPersian, persianToGregorian } from '@/lib/dateUtils';
 import DataTable from '@/components/DataTable';
 import Modal from '@/components/Modal';
 import Toast from '@/components/Toast';
+import PersianDatePicker from '@/components/PersianDatePicker';
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState([]);
@@ -20,6 +22,12 @@ export default function DevicesPage() {
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize, setPageSize] = useState(20);
+  
   const [formData, setFormData] = useState({
     serial_number: '',
     product_id: '',
@@ -50,16 +58,29 @@ export default function DevicesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentPage, pageSize, search, statusFilter]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
+      const skip = (currentPage - 1) * pageSize;
+      const limit = pageSize;
+
+      const params = {
+        skip,
+        limit,
+        ...(search?.trim() && { serial_number: search.trim() }),
+        ...(statusFilter && { status: statusFilter }),
+      };
+
       const [devicesData, productsData, personsData] = await Promise.all([
-        api.getDevices(),
+        api.getDevices(params, false),
         api.getProducts(),
         api.getPersons(),
       ]);
-      setDevices(devicesData || []);
+      
+      setDevices(devicesData?.items || devicesData || []);
+      setTotalCount(devicesData?.total || devicesData?.length || 0);
       setProducts(productsData || []);
       setPersons(personsData || []);
     } catch (error) {
@@ -151,7 +172,6 @@ export default function DevicesPage() {
     const devicesToCreate = [];
 
     if (prefix && prefix.length > 0) {
-      // If explicit prefix provided, expect numeric start/end
       if (!/^[0-9]+$/.test(start_serial) || !/^[0-9]+$/.test(end_serial)) {
         setToast({ message: 'وقتی پیشوند وارد شده است، لطفاً فقط شماره‌های آغاز/پایان وارد کنید', type: 'error' });
         return;
@@ -181,7 +201,6 @@ export default function DevicesPage() {
         });
       }
     } else {
-      // Fallback to previous behavior which parses prefix from the inputs
       const startMatch = String(start_serial || '').match(/^(.*?)(\d+)$/);
       const endMatch = String(end_serial || '').match(/^(.*?)(\d+)$/);
       if (!startMatch || !endMatch) {
@@ -226,6 +245,7 @@ export default function DevicesPage() {
       await api.createDevicesBulk(devicesToCreate);
       setToast({ message: 'دستگاه‌ها با موفقیت ایجاد شدند', type: 'success' });
       resetBulkForm();
+      setCurrentPage(1);
       loadData();
     } catch (error) {
       setToast({ message: error.message, type: 'error' });
@@ -257,6 +277,18 @@ export default function DevicesPage() {
     const person = persons.find(p => p.id === id);
     return person?.full_name || '-';
   };
+
+  const handleSearchChange = (value) => {
+    setSearch(value);
+    setCurrentPage(1);
+  };
+
+  const handleStatusFilterChange = (value) => {
+    setStatusFilter(value);
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   const columns = [
     { key: 'id', label: 'شناسه', width: '70px' },
@@ -295,12 +327,6 @@ export default function DevicesPage() {
     },
   ];
 
-  const filteredDevices = devices.filter(device => {
-    const matchesSearch = device.serial_number?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = !statusFilter || device.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -308,18 +334,18 @@ export default function DevicesPage() {
           <h1 className="text-2xl font-bold text-white">مدیریت دستگاه‌ها</h1>
           <p className="text-dark-400 mt-1">لیست دستگاه‌های تولید شده</p>
         </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => { resetForm(); setModalOpen(true); }} className="btn btn-primary">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          افزودن دستگاه
-        </button>
-            <button onClick={() => { setBulkModalOpen(true); }} className="btn btn-secondary">
-              ایجاد دسته‌ای
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => { resetForm(); setModalOpen(true); }} className="btn btn-primary">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            افزودن دستگاه
+          </button>
+          <button onClick={() => { setBulkModalOpen(true); }} className="btn btn-secondary">
+            ایجاد دسته‌ای
+          </button>
         </div>
+      </div>
 
       {/* Filters */}
       <div className="card">
@@ -331,14 +357,14 @@ export default function DevicesPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="جستجو بر اساس سریال..."
               className="form-input pr-10"
             />
           </div>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleStatusFilterChange(e.target.value)}
             className="form-input w-full md:w-48"
           >
             <option value="">همه وضعیت‌ها</option>
@@ -351,13 +377,77 @@ export default function DevicesPage() {
 
       <DataTable
         columns={columns}
-        data={filteredDevices}
+        data={devices}
         loading={loading}
         onView={handleView}
         onEdit={handleEdit}
         onDelete={handleDelete}
         emptyMessage="دستگاهی ثبت نشده است"
       />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="card">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-dark-300">تعداد در صفحه:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="form-input w-20"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                اول
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                قبلی
+              </button>
+              
+              <span className="text-dark-300 px-4">
+                صفحه {currentPage} از {totalPages}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                بعدی
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                آخر
+              </button>
+            </div>
+
+            <div className="text-sm text-dark-300">
+              نمایش {((currentPage - 1) * pageSize) + 1} تا {Math.min(currentPage * pageSize, totalCount)} از {totalCount} مورد
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       <Modal
@@ -425,46 +515,34 @@ export default function DevicesPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">تاریخ مونتاژ</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="تاریخ مونتاژ"
                 value={formData.assembly_date}
-                onChange={(e) => setFormData({ ...formData, assembly_date: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setFormData({ ...formData, assembly_date: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">تاریخ تست</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="تاریخ تست"
                 value={formData.test_date}
-                onChange={(e) => setFormData({ ...formData, test_date: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setFormData({ ...formData, test_date: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">شروع گارانتی</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="شروع گارانتی"
                 value={formData.warranty_start}
-                onChange={(e) => setFormData({ ...formData, warranty_start: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setFormData({ ...formData, warranty_start: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">پایان گارانتی</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="پایان گارانتی"
                 value={formData.warranty_end}
-                onChange={(e) => setFormData({ ...formData, warranty_end: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setFormData({ ...formData, warranty_end: date })}
               />
             </div>
 
@@ -599,46 +677,34 @@ export default function DevicesPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">تاریخ مونتاژ</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="تاریخ مونتاژ"
                 value={bulkData.assembly_date}
-                onChange={(e) => setBulkData({ ...bulkData, assembly_date: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setBulkData({ ...bulkData, assembly_date: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">تاریخ تست</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="تاریخ تست"
                 value={bulkData.test_date}
-                onChange={(e) => setBulkData({ ...bulkData, test_date: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setBulkData({ ...bulkData, test_date: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">شروع گارانتی</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="شروع گارانتی"
                 value={bulkData.warranty_start}
-                onChange={(e) => setBulkData({ ...bulkData, warranty_start: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setBulkData({ ...bulkData, warranty_start: date })}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-dark-300 mb-2">پایان گارانتی</label>
-              <input
-                type="date"
+              <PersianDatePicker
+                label="پایان گارانتی"
                 value={bulkData.warranty_end}
-                onChange={(e) => setBulkData({ ...bulkData, warranty_end: e.target.value })}
-                className="form-input"
-                dir="ltr"
+                onChange={(date) => setBulkData({ ...bulkData, warranty_end: date })}
               />
             </div>
 
