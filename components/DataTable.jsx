@@ -60,7 +60,7 @@ export default function DataTable({
           {data.map((row) => (
             <tr key={row.id} className="group">
               {columns.map((col) => (
-                <td key={col.key}>
+                <td key={col.key} onClick={() => onView(row)}>
                   {col.render ? col.render(row[col.key], row) : row[col.key] || '-'}
                 </td>
               ))}

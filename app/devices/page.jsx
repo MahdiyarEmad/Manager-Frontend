@@ -22,6 +22,9 @@ export default function DevicesPage() {
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  const [deviceLogs, setDeviceLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -90,6 +93,19 @@ export default function DevicesPage() {
     }
   };
 
+  const fetchDeviceLogs = async (deviceId) => {
+    setLogsLoading(true);
+    try {
+      const logs = await api.getDeviceLogs(deviceId, { limit: 10 });
+      setDeviceLogs(logs);
+    } catch (error) {
+      console.error('Failed to fetch logs:', error);
+      setDeviceLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -135,7 +151,9 @@ export default function DevicesPage() {
   const handleView = (device) => {
     setViewingDevice(device);
     setViewModalOpen(true);
+    fetchDeviceLogs(device.id);
   };
+
 
   const handleDelete = async (id) => {
     try {
@@ -738,11 +756,15 @@ export default function DevicesPage() {
           </div>
         </form>
       </Modal>
+    
 
       {/* View Modal */}
       <Modal
         isOpen={viewModalOpen}
-        onClose={() => setViewModalOpen(false)}
+        onClose={() => {
+          setViewModalOpen(false);
+          setDeviceLogs([]);
+        }}
         title="جزئیات دستگاه"
         size="lg"
       >
@@ -794,6 +816,28 @@ export default function DevicesPage() {
                 <p className="text-white">{viewingDevice.note}</p>
               </div>
             )}
+            <div className="p-3 bg-dark-900 rounded-lg">
+              <p className="text-dark-400 text-sm mb-2">لاگ‌های دستگاه</p>
+              {logsLoading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto"></div>
+                </div>
+              ) : deviceLogs.length > 0 ? (
+                <ul className="space-y-2 max-h-48 overflow-y-auto">
+                  {deviceLogs.map((log) => (
+                    <li key={log.id} className="text-sm border-r-2 border-primary-500 pr-3">
+                      <div className="flex justify-between items-start">
+                        <span className="text-primary-400 font-medium">{log.log_type}</span>
+                        <span className="text-dark-400 text-xs">{formatDate(log.created_at)}</span>
+                      </div>
+                      <p className="text-white mt-1">{log.description}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-dark-400 text-sm text-center py-2">هیچ لاگی ثبت نشده است</p>
+              )}
+            </div>
           </div>
         )}
       </Modal>
