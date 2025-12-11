@@ -1,16 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { DEVICE_STATUS, formatDate, toPersianNum } from '@/lib/constants';
 import Toast from '@/components/Toast';
 
 export default function WarrantyPage() {
-  const [serial, setSerial] = useState('');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Read serial from URL (?d=xxxx)
+  const [serial, setSerial] = useState(searchParams.get("d") || "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [repairs, setRepairs] = useState([]);
   const [toast, setToast] = useState(null);
+
+  const updateQueryParam = (value) => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (value.trim()) params.set("d", value.trim());
+    else params.delete("d");
+
+    router.replace(`?${params.toString()}`);
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -24,13 +38,11 @@ export default function WarrantyPage() {
       const device = await api.getDeviceBySerial(serial.trim());
       setResult(device);
 
-      // Try to get repairs for this device
+      // Repairs fetch (optional)
       try {
         const repairsData = await api.getRepairs({ device_id: device.id });
         setRepairs(repairsData || []);
-      } catch {
-        // Repairs might require auth, ignore error
-      }
+      } catch {}
     } catch (error) {
       setToast({ message: 'دستگاهی با این سریال یافت نشد', type: 'error' });
     } finally {
@@ -38,34 +50,45 @@ export default function WarrantyPage() {
     }
   };
 
+  // Auto-search if URL contains ?d=xxxx
+  useEffect(() => {
+    const urlSerial = searchParams.get("d");
+    if (urlSerial && !result && !loading) {
+      setSerial(urlSerial);
+      handleSearch({ preventDefault: () => {} });
+    }
+  }, []);
+
   const getWarrantyStatus = () => {
-    if (!result?.warranty_end) return { status: 'unknown', label: 'نامشخص', color: 'neutral' };
-    
+    if (!result?.warranty_end)
+      return { status: 'unknown', label: 'نامشخص', color: 'neutral' };
+
     const endDate = new Date(result.warranty_end);
     const today = new Date();
-    
+
     if (endDate > today) {
-      const daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+      const daysRemaining = Math.ceil((endDate - today) / 86400000);
+
       return {
         status: 'active',
         label: `گارانتی فعال - ${toPersianNum(daysRemaining)} روز باقی‌مانده`,
         color: 'success',
         days: daysRemaining,
       };
-    } else {
-      return {
-        status: 'expired',
-        label: 'گارانتی منقضی شده',
-        color: 'danger',
-      };
     }
+
+    return {
+      status: 'expired',
+      label: 'گارانتی منقضی شده',
+      color: 'danger',
+    };
   };
 
   const warranty = result ? getWarrantyStatus() : null;
 
   return (
     <div className="min-h-screen bg-dark-950 relative overflow-hidden">
-      {/* Background Effects */}
+      {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-dark-950 via-dark-900 to-dark-950" />
       <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary-600/5 rounded-full blur-3xl" />
       <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl" />
@@ -88,7 +111,11 @@ export default function WarrantyPage() {
             <input
               type="text"
               value={serial}
-              onChange={(e) => setSerial(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSerial(value);
+                updateQueryParam(value);
+              }}
               placeholder="سریال دستگاه"
               className="form-input flex-1 text-lg py-4"
               autoFocus
@@ -112,18 +139,21 @@ export default function WarrantyPage() {
         {/* Result */}
         {result && (
           <div className="space-y-6 animate-fade-in">
-            {/* Warranty Status Card */}
+            {/* Warranty Status */}
             <div className={`p-6 rounded-2xl border-2 ${
-              warranty.color === 'success' 
-                ? 'bg-emerald-500/10 border-emerald-500/30' 
+              warranty.color === 'success'
+                ? 'bg-emerald-500/10 border-emerald-500/30'
                 : warranty.color === 'danger'
                 ? 'bg-red-500/10 border-red-500/30'
                 : 'bg-dark-800 border-dark-700'
             }`}>
               <div className="flex items-center gap-4">
                 <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                  warranty.color === 'success' ? 'bg-emerald-500/20' :
-                  warranty.color === 'danger' ? 'bg-red-500/20' : 'bg-dark-700'
+                  warranty.color === 'success'
+                    ? 'bg-emerald-500/20'
+                    : warranty.color === 'danger'
+                    ? 'bg-red-500/20'
+                    : 'bg-dark-700'
                 }`}>
                   {warranty.status === 'active' ? (
                     <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,8 +171,11 @@ export default function WarrantyPage() {
                 </div>
                 <div>
                   <p className={`text-xl font-bold ${
-                    warranty.color === 'success' ? 'text-emerald-400' :
-                    warranty.color === 'danger' ? 'text-red-400' : 'text-dark-300'
+                    warranty.color === 'success'
+                      ? 'text-emerald-400'
+                      : warranty.color === 'danger'
+                      ? 'text-red-400'
+                      : 'text-dark-300'
                   }`}>
                     {warranty.label}
                   </p>
@@ -181,7 +214,7 @@ export default function WarrantyPage() {
               </div>
             </div>
 
-            {/* Repair History */}
+            {/* Repairs */}
             {repairs.length > 0 && (
               <div className="bg-dark-800/80 backdrop-blur border border-dark-700 rounded-2xl p-6">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -190,14 +223,21 @@ export default function WarrantyPage() {
                   </svg>
                   سابقه تعمیرات
                 </h3>
+
                 <div className="space-y-3">
                   {repairs.map((repair) => (
                     <div key={repair.id} className="flex items-center justify-between p-3 bg-dark-900 rounded-lg">
                       <div>
                         <p className="text-white text-sm">{repair.reported_issue}</p>
-                        <p className="text-dark-500 text-xs mt-1">{formatDate(repair.repair_date)}</p>
+                        <p className="text-dark-500 text-xs mt-1">
+                          {formatDate(repair.repair_date)}
+                        </p>
                       </div>
-                      <span className={`badge ${repair.is_warranty_repair ? 'badge-success' : 'badge-warning'}`}>
+                      <span
+                        className={`badge ${
+                          repair.is_warranty_repair ? 'badge-success' : 'badge-warning'
+                        }`}
+                      >
                         {repair.is_warranty_repair ? 'گارانتی' : 'غیر گارانتی'}
                       </span>
                     </div>
@@ -210,8 +250,8 @@ export default function WarrantyPage() {
 
         {/* Back to Login */}
         <div className="text-center mt-10">
-          <a 
-            href="/login" 
+          <a
+            href="/login"
             className="text-primary-400 hover:text-primary-300 text-sm inline-flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
